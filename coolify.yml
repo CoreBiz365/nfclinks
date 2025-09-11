@@ -1,3 +1,6 @@
+# NFC Links Service Deployment Configuration
+# Deploy to: get.biz365.ai
+
 version: '3.8'
 
 services:
@@ -5,28 +8,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+    container_name: biz365-nfc-links
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - API_BASE_URL=https://api.biz365.ai
-    restart: unless-stopped
+    ports:
+      - "80:3001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nfc-links.rule=Host(get.biz365.ai)"
-      - "traefik.http.routers.nfc-links.entrypoints=websecure"
-      - "traefik.http.routers.nfc-links.tls=true"
-      - "traefik.http.routers.nfc-links.service=nfc-links"
-      - "traefik.http.services.nfc-links.loadbalancer.server.port=3000"
+      start_period: 30s
+    networks:
+      - biz365-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
 
 networks:
-  default:
-    external: true
-    name: coolify
+  biz365-network:
+    driver: bridge
