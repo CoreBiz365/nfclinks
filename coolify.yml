@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  nfc-links:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - API_BASE_URL=https://api.biz365.ai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nfc-links.rule=Host(get.biz365.ai)"
+      - "traefik.http.routers.nfc-links.entrypoints=websecure"
+      - "traefik.http.routers.nfc-links.tls=true"
+      - "traefik.http.routers.nfc-links.service=nfc-links"
+      - "traefik.http.services.nfc-links.loadbalancer.server.port=3000"
+
+networks:
+  default:
+    external: true
+    name: coolify
