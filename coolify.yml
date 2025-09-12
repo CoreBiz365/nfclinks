@@ -1,38 +1,8 @@
 # NFC Links Service Deployment Configuration
 # Deploy to: get.biz365.ai
+# Uses: docker-compose.yml
 
 version: '3.8'
 
-services:
-  nfc-links:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: biz365-nfc-links
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - API_BASE_URL=https://api.biz365.ai
-    ports:
-      - "80:3001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - biz365-network
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.1'
-        reservations:
-          memory: 64M
-          cpus: '0.05'
-
-networks:
-  biz365-network:
-    driver: bridge
+# This coolify.yml references the docker-compose.yml file
+# Coolify will use the docker-compose.yml for deployment
