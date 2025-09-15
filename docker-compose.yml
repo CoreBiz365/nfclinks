@@ -23,8 +23,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    networks:
-      - biz365-network
     deploy:
       resources:
         limits:
@@ -33,8 +31,3 @@ services:
         reservations:
           memory: 64M
           cpus: '0.05'
-
-networks:
-  biz365-network:
-    driver: bridge
-    external: true
