@@ -1,11 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_BASE_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
+
+// Database connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 // Middleware
 app.use(helmet());
@@ -25,21 +32,79 @@ app.get('/health', (req, res) => {
 app.get('/q/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
+    const { ref, utm_source, utm_medium, utm_campaign } = req.query;
     
-    // Fetch NFC tag data from main API
-    const response = await fetch(`${API_BASE_URL}/api/nfc/tags/${uid}`);
+    // Get client IP
+    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
     
-    if (!response.ok) {
-      return res.status(404).send('NFC tag not found');
+    // Find NFC tag in database
+    const nfcResult = await pool.query(`
+      SELECT id, uid, bizcode, active_target_url, title, click_count
+      FROM app.nfc_tags 
+      WHERE uid = $1 AND deleted_at IS NULL
+    `, [uid]);
+    
+    if (nfcResult.rows.length === 0) {
+      return res.status(404).send(`
+        <html>
+          <head><title>NFC Tag Not Found</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>🔍 NFC Tag Not Found</h1>
+            <p>The NFC tag with UID <code>${uid}</code> was not found.</p>
+            <p>Please check the tag or contact support.</p>
+          </body>
+        </html>
+      `);
     }
     
-    const nfcTag = await response.json();
+    const nfcTag = nfcResult.rows[0];
     
     if (!nfcTag.active_target_url) {
-      return res.status(404).send('NFC tag not configured');
+      return res.status(404).send(`
+        <html>
+          <head><title>NFC Tag Not Configured</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>⚙️ NFC Tag Not Configured</h1>
+            <p>This NFC tag (${nfcTag.bizcode}) has not been configured yet.</p>
+            <p>Please contact the business owner to set up the redirect URL.</p>
+          </body>
+        </html>
+      `);
     }
     
-    // Log analytics event
+    // Build redirect URL with query parameters
+    let redirectUrl = nfcTag.active_target_url;
+    const urlParams = new URLSearchParams();
+    
+    if (ref) urlParams.append('ref', ref);
+    if (utm_source) urlParams.append('utm_source', utm_source);
+    if (utm_medium) urlParams.append('utm_medium', utm_medium);
+    if (utm_campaign) urlParams.append('utm_campaign', utm_campaign);
+    
+    if (urlParams.toString()) {
+      redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + urlParams.toString();
+    }
+    
+    // Update click count and last clicked time
+    await pool.query(`
+      UPDATE app.nfc_tags 
+      SET click_count = COALESCE(click_count, 0) + 1, 
+          last_clicked = NOW(),
+          updated_at = NOW()
+      WHERE id = $1
+    `, [nfcTag.id]);
+    
+    // Record redirect event
+    try {
+      await pool.query(`
+        INSERT INTO app.nfc_redirects (nfc_tag_id, resolved_url, client_ip, user_agent)
+        VALUES ($1, $2, $3, $4)
+      `, [nfcTag.id, redirectUrl, clientIp, req.get('User-Agent')]);
+    } catch (error) {
+      console.error('Failed to record redirect:', error);
+    }
+    
+    // Log analytics event to main API
     try {
       await fetch(`${API_BASE_URL}/api/analytics/events`, {
         method: 'POST',
@@ -48,9 +113,11 @@ app.get('/q/:uid', async (req, res) => {
           event_type: 'nfc_redirect',
           event_data: {
             uid,
-            target_url: nfcTag.active_target_url,
+            bizcode: nfcTag.bizcode,
+            target_url: redirectUrl,
             user_agent: req.get('User-Agent'),
-            ip: req.ip
+            ip: clientIp,
+            title: nfcTag.title
           }
         })
       });
@@ -59,11 +126,20 @@ app.get('/q/:uid', async (req, res) => {
     }
     
     // Redirect to target URL
-    res.redirect(302, nfcTag.active_target_url);
+    res.redirect(302, redirectUrl);
     
   } catch (error) {
     console.error('NFC redirect error:', error);
-    res.status(500).send('Internal server error');
+    res.status(500).send(`
+      <html>
+        <head><title>Server Error</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1>⚠️ Server Error</h1>
+          <p>Something went wrong while processing your request.</p>
+          <p>Please try again later.</p>
+        </body>
+      </html>
+    `);
   }
 });
 
