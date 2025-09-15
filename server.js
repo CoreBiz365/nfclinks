@@ -11,7 +11,7 @@ const API_BASE_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: false  // Database doesn't support SSL
 });
 
 // Middleware
