@@ -8,6 +8,111 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_BASE_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
 
+// Performance monitoring
+const performanceMetrics = {
+  totalRequests: 0,
+  successfulRedirects: 0,
+  failedRedirects: 0,
+  averageResponseTime: 0,
+  slowRequests: 0,
+  errorCount: 0,
+  startTime: Date.now(),
+  requestTimes: []
+};
+
+// Performance monitoring middleware
+const performanceMiddleware = (req, res, next) => {
+  const startTime = Date.now();
+  
+  // Track request
+  performanceMetrics.totalRequests++;
+  
+  // Override res.json to track response time
+  const originalJson = res.json.bind(res);
+  res.json = function(data) {
+    const responseTime = Date.now() - startTime;
+    
+    // Track response time
+    performanceMetrics.requestTimes.push(responseTime);
+    
+    // Keep only last 1000 response times for average calculation
+    if (performanceMetrics.requestTimes.length > 1000) {
+      performanceMetrics.requestTimes.shift();
+    }
+    
+    // Calculate average response time
+    const totalTime = performanceMetrics.requestTimes.reduce((a, b) => a + b, 0);
+    performanceMetrics.averageResponseTime = Math.round(totalTime / performanceMetrics.requestTimes.length);
+    
+    // Track slow requests (>100ms)
+    if (responseTime > 100) {
+      performanceMetrics.slowRequests++;
+      console.warn(`🐌 Slow NFC redirect: ${responseTime}ms for ${req.path}`);
+    }
+    
+    // Track success/failure
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      performanceMetrics.successfulRedirects++;
+    } else {
+      performanceMetrics.failedRedirects++;
+      performanceMetrics.errorCount++;
+    }
+    
+    // Log performance every 100 requests
+    if (performanceMetrics.totalRequests % 100 === 0) {
+      logPerformanceMetrics();
+    }
+    
+    return originalJson(data);
+  };
+  
+  next();
+};
+
+// Log performance metrics
+function logPerformanceMetrics() {
+  const uptime = Math.round((Date.now() - performanceMetrics.startTime) / 1000);
+  const successRate = ((performanceMetrics.successfulRedirects / performanceMetrics.totalRequests) * 100).toFixed(1);
+  const slowRequestRate = ((performanceMetrics.slowRequests / performanceMetrics.totalRequests) * 100).toFixed(1);
+  
+  console.log('\n📊 NFC Service Performance Metrics:');
+  console.log(`   Total Requests: ${performanceMetrics.totalRequests}`);
+  console.log(`   Success Rate: ${successRate}%`);
+  console.log(`   Average Response Time: ${performanceMetrics.averageResponseTime}ms`);
+  console.log(`   Slow Requests (>100ms): ${performanceMetrics.slowRequests} (${slowRequestRate}%)`);
+  console.log(`   Errors: ${performanceMetrics.errorCount}`);
+  console.log(`   Uptime: ${uptime}s`);
+  console.log('');
+}
+
+// Performance endpoint
+app.get('/performance', (req, res) => {
+  const uptime = Math.round((Date.now() - performanceMetrics.startTime) / 1000);
+  const successRate = performanceMetrics.totalRequests > 0 
+    ? ((performanceMetrics.successfulRedirects / performanceMetrics.totalRequests) * 100).toFixed(1)
+    : 0;
+  const slowRequestRate = performanceMetrics.totalRequests > 0
+    ? ((performanceMetrics.slowRequests / performanceMetrics.totalRequests) * 100).toFixed(1)
+    : 0;
+  
+  res.json({
+    status: 'ok',
+    service: 'nfc-links',
+    performance: {
+      totalRequests: performanceMetrics.totalRequests,
+      successfulRedirects: performanceMetrics.successfulRedirects,
+      failedRedirects: performanceMetrics.failedRedirects,
+      successRate: `${successRate}%`,
+      averageResponseTime: `${performanceMetrics.averageResponseTime}ms`,
+      slowRequests: performanceMetrics.slowRequests,
+      slowRequestRate: `${slowRequestRate}%`,
+      errorCount: performanceMetrics.errorCount,
+      uptime: `${uptime}s`,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365',
@@ -27,6 +132,7 @@ pool.on('error', (err) => {
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(performanceMiddleware);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -68,10 +174,10 @@ app.get('/q/:uid', async (req, res) => {
     // Get client IP
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
     
-    // Find NFC tag in database
+    // Find NFC tag in database (multi-tenant aware)
     console.log(`📋 Querying database for UID: ${uid}`);
     const nfcResult = await pool.query(`
-      SELECT id, uid, bizcode, title, click_count, active_target_url, target_url
+      SELECT id, uid, bizcode, title, click_count, active_target_url, target_url, organization_id
       FROM app.nfc_tags 
       WHERE uid = $1 AND deleted_at IS NULL
     `, [uid]);
@@ -157,6 +263,7 @@ app.get('/q/:uid', async (req, res) => {
             target_url: redirectUrl,
             base_url: baseRedirectUrl,
             redirect_type: redirectType,
+            organization_id: nfcTag.organization_id,
             user_agent: req.get('User-Agent'),
             ip: clientIp,
             title: nfcTag.title

@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "monitor": "node monitor-performance.js",
+    "test:performance": "node test-performance.js",
+    "test:load": "node test-performance.js --concurrency 20 --duration 60 --rps 100"
   },
   "dependencies": {
     "express": "^4.19.2",
