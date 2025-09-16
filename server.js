@@ -39,7 +39,7 @@ app.get('/q/:uid', async (req, res) => {
     
     // Find NFC tag in database
     const nfcResult = await pool.query(`
-      SELECT id, uid, bizcode, title, click_count
+      SELECT id, uid, bizcode, title, click_count, active_target_url, source_target_url
       FROM app.nfc_tags 
       WHERE uid = $1 AND deleted_at IS NULL
     `, [uid]);
@@ -59,11 +59,22 @@ app.get('/q/:uid', async (req, res) => {
     
     const nfcTag = nfcResult.rows[0];
     
-    // All NFC tags now redirect to app.biz365.ai/signup regardless of configuration
-    // This section is kept for future reference but no longer blocks redirects
+    // Determine redirect URL - use custom URL if set, otherwise default to signup
+    let baseRedirectUrl;
+    let redirectType = 'signup_page';
     
-    // Build redirect URL with query parameters - always redirect to app.biz365.ai/signup
-    let redirectUrl = 'https://app.biz365.ai/signup';
+    if (nfcTag.active_target_url && nfcTag.active_target_url.trim() !== '') {
+      // User has set a custom redirect URL
+      baseRedirectUrl = nfcTag.active_target_url;
+      redirectType = 'custom_url';
+    } else {
+      // Default to signup page
+      baseRedirectUrl = 'https://app.biz365.ai/signup';
+      redirectType = 'signup_page';
+    }
+    
+    // Build redirect URL with query parameters
+    let redirectUrl = baseRedirectUrl;
     const urlParams = new URLSearchParams();
     
     // Add UTM parameters for tracking
@@ -77,7 +88,7 @@ app.get('/q/:uid', async (req, res) => {
     urlParams.append('nfc_uid', uid);
     
     if (urlParams.toString()) {
-      redirectUrl += '?' + urlParams.toString();
+      redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + urlParams.toString();
     }
     
     // Update click count and last clicked time
@@ -110,7 +121,8 @@ app.get('/q/:uid', async (req, res) => {
             uid,
             bizcode: nfcTag.bizcode,
             target_url: redirectUrl,
-            redirect_type: 'signup_page',
+            base_url: baseRedirectUrl,
+            redirect_type: redirectType,
             user_agent: req.get('User-Agent'),
             ip: clientIp,
             title: nfcTag.title

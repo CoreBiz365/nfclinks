@@ -24,7 +24,11 @@ This service handles NFC tag redirects and will be deployed on `get.biz365.ai`.
 
 ## Redirect Behavior
 
-All NFC tags (BizTags) will redirect to `https://app.biz365.ai/signup` with the following parameters:
+**Default Behavior**: All NFC tags (BizTags) redirect to `https://app.biz365.ai/signup` by default.
+
+**Custom Redirects**: Users can set custom redirect URLs for their BizTags. When a custom URL is set, the NFC tag will redirect to that URL instead of the default signup page.
+
+**Tracking Parameters**: All redirects include the following parameters:
 - `bizcode` - The BizCode of the NFC tag
 - `nfc_uid` - The UID of the NFC tag
 - `ref` - Referral parameter (if provided)
@@ -32,10 +36,52 @@ All NFC tags (BizTags) will redirect to `https://app.biz365.ai/signup` with the 
 - `utm_medium` - UTM medium (if provided)
 - `utm_campaign` - UTM campaign (if provided)
 
+## API Endpoints for BizTag Management
+
+### Backend API (api.biz365.ai)
+
+**Set Custom Redirect**
+```
+PUT /api/nfc/tags/:bizcode/redirect
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "redirect_url": "https://instagram.com/yourprofile",
+  "title": "Instagram Profile",
+  "description": "Follow us on Instagram"
+}
+```
+
+**Get BizTag Details**
+```
+GET /api/nfc/tags/:bizcode
+```
+
+**Reset to Default Redirect**
+```
+DELETE /api/nfc/tags/:bizcode/redirect
+Authorization: Bearer <token>
+```
+
+### NFC Service (get.biz365.ai)
+
+**NFC Redirect**
+```
+GET /q/:uid
+GET /:uid
+```
+
+**Health Check**
+```
+GET /health
+```
+
 ## Configuration
 
 The service connects to the main backend API to:
 1. Look up NFC tag by UID in `app.nfc_tags` table
-2. Verify tag exists and is active
-3. Redirect to signup page with tracking parameters
-4. Log analytics event with redirect type
+2. Check for custom redirect URL in `active_target_url` column
+3. Use custom URL if available, otherwise default to signup page
+4. Add tracking parameters and redirect user
+5. Log analytics event with redirect type
