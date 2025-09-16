@@ -39,7 +39,7 @@ app.get('/q/:uid', async (req, res) => {
     
     // Find NFC tag in database
     const nfcResult = await pool.query(`
-      SELECT id, uid, bizcode, active_target_url, title, click_count
+      SELECT id, uid, bizcode, title, click_count
       FROM app.nfc_tags 
       WHERE uid = $1 AND deleted_at IS NULL
     `, [uid]);
@@ -59,30 +59,25 @@ app.get('/q/:uid', async (req, res) => {
     
     const nfcTag = nfcResult.rows[0];
     
-    if (!nfcTag.active_target_url) {
-      return res.status(404).send(`
-        <html>
-          <head><title>NFC Tag Not Configured</title></head>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>⚙️ NFC Tag Not Configured</h1>
-            <p>This NFC tag (${nfcTag.bizcode}) has not been configured yet.</p>
-            <p>Please contact the business owner to set up the redirect URL.</p>
-          </body>
-        </html>
-      `);
-    }
+    // All NFC tags now redirect to app.biz365.ai/signup regardless of configuration
+    // This section is kept for future reference but no longer blocks redirects
     
-    // Build redirect URL with query parameters
-    let redirectUrl = nfcTag.active_target_url;
+    // Build redirect URL with query parameters - always redirect to app.biz365.ai/signup
+    let redirectUrl = 'https://app.biz365.ai/signup';
     const urlParams = new URLSearchParams();
     
+    // Add UTM parameters for tracking
     if (ref) urlParams.append('ref', ref);
     if (utm_source) urlParams.append('utm_source', utm_source);
     if (utm_medium) urlParams.append('utm_medium', utm_medium);
     if (utm_campaign) urlParams.append('utm_campaign', utm_campaign);
     
+    // Add bizcode for tracking which NFC tag was scanned
+    urlParams.append('bizcode', nfcTag.bizcode);
+    urlParams.append('nfc_uid', uid);
+    
     if (urlParams.toString()) {
-      redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + urlParams.toString();
+      redirectUrl += '?' + urlParams.toString();
     }
     
     // Update click count and last clicked time
@@ -115,6 +110,7 @@ app.get('/q/:uid', async (req, res) => {
             uid,
             bizcode: nfcTag.bizcode,
             target_url: redirectUrl,
+            redirect_type: 'signup_page',
             user_agent: req.get('User-Agent'),
             ip: clientIp,
             title: nfcTag.title
