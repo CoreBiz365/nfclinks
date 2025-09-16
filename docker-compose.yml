@@ -14,7 +14,7 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - API_BASE_URL=https://api.biz365.ai
-      - DATABASE_URL=postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365
+      - DATABASE_URL=postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/postgres
     ports:
       - "3001:3001"
     healthcheck:
