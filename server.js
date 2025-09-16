@@ -10,8 +10,17 @@ const API_BASE_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365',
   ssl: false  // Database doesn't support SSL
+});
+
+// Test database connection on startup
+pool.on('connect', () => {
+  console.log('✅ Database connected successfully');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Database connection error:', err);
 });
 
 // Middleware
@@ -28,21 +37,46 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Test endpoint to check database connection
+app.get('/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as total FROM app.nfc_tags WHERE deleted_at IS NULL');
+    res.json({ 
+      status: 'ok', 
+      database: 'connected',
+      total_tags: result.rows[0].total,
+      timestamp: new Date().toISOString() 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      database: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString() 
+    });
+  }
+});
+
 // NFC redirect endpoint
 app.get('/q/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
     const { ref, utm_source, utm_medium, utm_campaign } = req.query;
     
+    console.log(`🔗 NFC redirect request for UID: ${uid}`);
+    
     // Get client IP
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
     
     // Find NFC tag in database
+    console.log(`📋 Querying database for UID: ${uid}`);
     const nfcResult = await pool.query(`
-      SELECT id, uid, bizcode, title, click_count, active_target_url, source_target_url
+      SELECT id, uid, bizcode, title, click_count, active_target_url, target_url
       FROM app.nfc_tags 
       WHERE uid = $1 AND deleted_at IS NULL
     `, [uid]);
+    
+    console.log(`📊 Query result: ${nfcResult.rows.length} rows found`);
     
     if (nfcResult.rows.length === 0) {
       return res.status(404).send(`
