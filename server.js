@@ -199,19 +199,11 @@ app.get('/q/:uid', async (req, res) => {
     
     const nfcTag = nfcResult.rows[0];
     
-    // Determine redirect URL - use custom URL if set, otherwise default to signup
-    let baseRedirectUrl;
+    // Force all BizTags to redirect to signup page
+    let baseRedirectUrl = 'https://app.biz365.ai/signup';
     let redirectType = 'signup_page';
     
-    if (nfcTag.active_target_url && nfcTag.active_target_url.trim() !== '') {
-      // User has set a custom redirect URL
-      baseRedirectUrl = nfcTag.active_target_url;
-      redirectType = 'custom_url';
-    } else {
-      // Default to signup page
-      baseRedirectUrl = 'https://app.biz365.ai/signup';
-      redirectType = 'signup_page';
-    }
+    console.log(`🎯 Forcing redirect to signup page for BizTag: ${nfcTag.bizcode}`);
     
     // Build redirect URL with query parameters
     let redirectUrl = baseRedirectUrl;

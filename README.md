@@ -24,9 +24,9 @@ This service handles NFC tag redirects and will be deployed on `get.biz365.ai`.
 
 ## Redirect Behavior
 
-**Default Behavior**: All NFC tags (BizTags) redirect to `https://app.biz365.ai/signup` by default.
+**All BizTags Redirect to Signup**: All NFC tags (BizTags) are configured to redirect to `https://app.biz365.ai/signup` regardless of any custom URLs that may have been set previously.
 
-**Custom Redirects**: Users can set custom redirect URLs for their BizTags. When a custom URL is set, the NFC tag will redirect to that URL instead of the default signup page.
+**Forced Signup Redirect**: The system has been configured to force all BizTag redirects to the signup page to ensure consistent user flow and lead generation.
 
 **Tracking Parameters**: All redirects include the following parameters:
 - `bizcode` - The BizCode of the NFC tag

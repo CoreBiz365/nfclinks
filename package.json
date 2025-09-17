@@ -6,12 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "echo 'No build step required'",
-    "monitor": "node monitor-performance.js",
-    "test:performance": "node test-performance.js",
-    "test:load": "node test-performance.js --concurrency 20 --duration 60 --rps 100",
-    "test:biztag": "node test-biztag-performance.js",
-    "test:biztag:load": "node test-biztag-performance.js --concurrency 10 --duration 30 --rps 20"
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
     "express": "^4.19.2",
