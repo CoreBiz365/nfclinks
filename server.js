@@ -113,20 +113,30 @@ app.get('/performance', (req, res) => {
   });
 });
 
-// Database connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365',
-  ssl: false  // Database doesn't support SSL
-});
+// Backend API configuration
+const BACKEND_API_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
 
-// Test database connection on startup
-pool.on('connect', () => {
-  console.log('✅ Database connected successfully');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Database connection error:', err);
-});
+// Helper function to call backend API
+async function callBackendAPI(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Backend API call failed:', error.message);
+    throw error;
+  }
+}
 
 // Middleware
 app.use(helmet());
@@ -143,20 +153,20 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Test endpoint to check database connection
+// Test endpoint to check backend API connection
 app.get('/test-db', async (req, res) => {
   try {
-    const result = await pool.query('SELECT COUNT(*) as total FROM app.nfc_tags WHERE deleted_at IS NULL');
+    const data = await callBackendAPI('/api/nfc/tags');
     res.json({ 
       status: 'ok', 
-      database: 'connected',
-      total_tags: result.rows[0].total,
+      backend_api: 'connected',
+      total_tags: data.data ? data.data.length : 0,
       timestamp: new Date().toISOString() 
     });
   } catch (error) {
     res.status(500).json({ 
       status: 'error', 
-      database: 'disconnected',
+      backend_api: 'disconnected',
       error: error.message,
       timestamp: new Date().toISOString() 
     });
@@ -174,17 +184,13 @@ app.get('/q/:uid', async (req, res) => {
     // Get client IP
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
     
-    // Find NFC tag in database (multi-tenant aware)
-    console.log(`📋 Querying database for UID: ${uid}`);
-    const nfcResult = await pool.query(`
-      SELECT id, uid, bizcode, title, click_count, active_target_url, target_url, organization_id
-      FROM app.nfc_tags 
-      WHERE uid = $1 AND deleted_at IS NULL
-    `, [uid]);
+    // Find NFC tag via backend API
+    console.log(`📋 Querying backend API for UID: ${uid}`);
+    const nfcData = await callBackendAPI(`/api/nfc/search-uid/${uid}`);
     
-    console.log(`📊 Query result: ${nfcResult.rows.length} rows found`);
+    console.log(`📊 API result:`, nfcData);
     
-    if (nfcResult.rows.length === 0) {
+    if (!nfcData.ok || !nfcData.data) {
       return res.status(404).send(`
         <html>
           <head><title>NFC Tag Not Found</title></head>
@@ -197,7 +203,7 @@ app.get('/q/:uid', async (req, res) => {
       `);
     }
     
-    const nfcTag = nfcResult.rows[0];
+    const nfcTag = nfcData.data;
     
     // Force all BizTags to redirect to login page
     let baseRedirectUrl = 'https://app.biz365.ai/login';
@@ -223,30 +229,28 @@ app.get('/q/:uid', async (req, res) => {
       redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + urlParams.toString();
     }
     
-    // Update click count and last clicked time
-    await pool.query(`
-      UPDATE app.nfc_tags 
-      SET click_count = COALESCE(click_count, 0) + 1, 
-          last_clicked = NOW(),
-          updated_at = NOW()
-      WHERE id = $1
-    `, [nfcTag.id]);
-    
-    // Record redirect event
+    // Record NFC scan via backend API
     try {
-      await pool.query(`
-        INSERT INTO app.nfc_redirects (nfc_tag_id, resolved_url, client_ip, user_agent)
-        VALUES ($1, $2, $3, $4)
-      `, [nfcTag.id, redirectUrl, clientIp, req.get('User-Agent')]);
+      await callBackendAPI('/api/nfc/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          nfc_tag_id: nfcTag.id,
+          uid: uid,
+          bizcode: nfcTag.bizcode,
+          client_ip: clientIp,
+          user_agent: req.get('User-Agent'),
+          resolved_url: redirectUrl,
+          redirect_type: redirectType
+        })
+      });
     } catch (error) {
-      console.error('Failed to record redirect:', error);
+      console.error('Failed to record NFC scan:', error);
     }
     
     // Log analytics event to main API
     try {
-      await fetch(`${API_BASE_URL}/api/analytics/events`, {
+      await callBackendAPI('/api/analytics/events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event_type: 'nfc_redirect',
           event_data: {
@@ -295,21 +299,27 @@ app.get('*', (req, res) => {
   res.status(404).send('Not found');
 });
 
-// Test database connection before starting server
+// Test backend API connection before starting server
 async function startServer() {
   try {
-    console.log('🔄 Testing database connection...');
-    await pool.query('SELECT 1');
-    console.log('✅ Database connection test successful');
+    console.log('🔄 Testing backend API connection...');
+    await callBackendAPI('/health');
+    console.log('✅ Backend API connection test successful');
     
     app.listen(PORT, () => {
       console.log(`🚀 NFC Links service running on port ${PORT}`);
-      console.log(`🌐 API Base URL: ${API_BASE_URL}`);
-      console.log(`📊 Database: Connected`);
+      console.log(`🌐 Backend API URL: ${BACKEND_API_URL}`);
+      console.log(`📊 Backend API: Connected`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server - Database connection failed:', error.message);
-    process.exit(1);
+    console.error('❌ Failed to start server - Backend API connection failed:', error.message);
+    console.log('⚠️  Starting server anyway - API calls will be retried...');
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 NFC Links service running on port ${PORT}`);
+      console.log(`🌐 Backend API URL: ${BACKEND_API_URL}`);
+      console.log(`⚠️  Backend API: Connection issues - will retry on requests`);
+    });
   }
 }
 
