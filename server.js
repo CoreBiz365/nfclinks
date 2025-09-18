@@ -199,11 +199,11 @@ app.get('/q/:uid', async (req, res) => {
     
     const nfcTag = nfcResult.rows[0];
     
-    // Force all BizTags to redirect to signup page
-    let baseRedirectUrl = 'https://app.biz365.ai/signup';
-    let redirectType = 'signup_page';
+    // Force all BizTags to redirect to login page
+    let baseRedirectUrl = 'https://app.biz365.ai/login';
+    let redirectType = 'login_page';
     
-    console.log(`🎯 Forcing redirect to signup page for BizTag: ${nfcTag.bizcode}`);
+    console.log(`🎯 Forcing redirect to login page for BizTag: ${nfcTag.bizcode}`);
     
     // Build redirect URL with query parameters
     let redirectUrl = baseRedirectUrl;
