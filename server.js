@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const API_BASE_URL = process.env.API_BASE_URL || 'https://api.biz365.ai';
 
 // Performance monitoring
@@ -295,7 +295,22 @@ app.get('*', (req, res) => {
   res.status(404).send('Not found');
 });
 
-app.listen(PORT, () => {
-  console.log(`NFC Links service running on port ${PORT}`);
-  console.log(`API Base URL: ${API_BASE_URL}`);
-});
+// Test database connection before starting server
+async function startServer() {
+  try {
+    console.log('🔄 Testing database connection...');
+    await pool.query('SELECT 1');
+    console.log('✅ Database connection test successful');
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 NFC Links service running on port ${PORT}`);
+      console.log(`🌐 API Base URL: ${API_BASE_URL}`);
+      console.log(`📊 Database: Connected`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server - Database connection failed:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
