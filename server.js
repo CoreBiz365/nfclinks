@@ -156,7 +156,7 @@ app.get('/health', (req, res) => {
 // Test endpoint to check backend API connection
 app.get('/test-db', async (req, res) => {
   try {
-    const data = await callBackendAPI('/api/nfc/tags');
+    const data = await callBackendAPI('/nfc/tags');
     res.json({ 
       status: 'ok', 
       backend_api: 'connected',
@@ -190,7 +190,7 @@ app.get('/q/:uid', async (req, res) => {
     let nfcTag;
     
     try {
-      nfcData = await callBackendAPI(`/api/nfc/search-uid/${uid}`);
+      nfcData = await callBackendAPI(`/nfc/search-uid/${uid}`);
       console.log(`📊 API result:`, nfcData);
       
       if (!nfcData.ok || !nfcData.data) {
@@ -259,7 +259,7 @@ app.get('/q/:uid', async (req, res) => {
     // Record NFC scan via backend API (only if not using fallback)
     if (nfcTag.id !== 'fallback-1') {
       try {
-        await callBackendAPI('/api/nfc/scan', {
+        await callBackendAPI('/nfc/scan', {
           method: 'POST',
           body: JSON.stringify({
             nfc_tag_id: nfcTag.id,
@@ -280,7 +280,7 @@ app.get('/q/:uid', async (req, res) => {
     
     // Log analytics event to main API
     try {
-      await callBackendAPI('/api/analytics/events', {
+      await callBackendAPI('/analytics/events', {
         method: 'POST',
         body: JSON.stringify({
           event_type: 'nfc_redirect',
