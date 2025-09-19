@@ -205,11 +205,11 @@ app.get('/q/:uid', async (req, res) => {
     
     const nfcTag = nfcData.data;
     
-    // Force all BizTags to redirect to login page
-    let baseRedirectUrl = 'https://app.biz365.ai/login';
-    let redirectType = 'login_page';
+    // Use configured redirect URL or default to signup page
+    let baseRedirectUrl = nfcTag.active_target_url || nfcTag.target_url || 'https://app.biz365.ai/signup';
+    let redirectType = nfcTag.active_target_url ? 'configured_redirect' : 'default_signup';
     
-    console.log(`🎯 Forcing redirect to login page for BizTag: ${nfcTag.bizcode}`);
+    console.log(`🎯 Redirecting BizTag ${nfcTag.bizcode} to: ${baseRedirectUrl}`);
     
     // Build redirect URL with query parameters
     let redirectUrl = baseRedirectUrl;
@@ -286,6 +286,18 @@ app.get('/q/:uid', async (req, res) => {
       </html>
     `);
   }
+});
+
+// NFC-specific redirect endpoint
+app.get('/nfc/:uid', async (req, res) => {
+  // Redirect to the /q/ endpoint for consistency
+  res.redirect(301, `/q/${req.params.uid}`);
+});
+
+// Canonical redirect endpoint
+app.get('/r/:uid', async (req, res) => {
+  // Redirect to the /q/ endpoint for consistency
+  res.redirect(301, `/q/${req.params.uid}`);
 });
 
 // Alternative redirect endpoint
