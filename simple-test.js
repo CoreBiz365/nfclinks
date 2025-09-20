@@ -8,7 +8,7 @@ console.log('Starting simple test server...');
 
 // Database connection
 const pool = new Pool({
-  connectionString: 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365',
+  connectionString: 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/postgres',
   ssl: false
 });
 

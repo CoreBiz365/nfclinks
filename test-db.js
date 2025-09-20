@@ -5,7 +5,7 @@ console.log('Testing database connection...');
 console.log('DATABASE_URL:', process.env.DATABASE_URL || 'Using default');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/biz365',
+  connectionString: process.env.DATABASE_URL || 'postgresql://biz365_user:asdfghjkl@89.117.75.191:5432/postgres',
   ssl: false
 });
 
