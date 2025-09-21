@@ -201,8 +201,28 @@ app.get('/q/:uid', async (req, res) => {
     } catch (error) {
       console.error('Backend API error:', error.message);
       
-      // Fallback: Create a basic NFC tag object for common BizCodes
-      if (uid === 'BZ6DHL7C') {
+      // Fallback: Create a basic NFC tag object for all unknown BizCodes
+      // Check if UID follows BizTag format (BZ followed by 6 alphanumeric characters)
+      const bizTagPattern = /^BZ[A-Z0-9]{6}$/;
+      
+      if (bizTagPattern.test(uid)) {
+        console.log(`🔄 Using fallback for BizTag: ${uid}`);
+        nfcTag = {
+          id: `fallback-${uid}`,
+          uid: uid,
+          bizcode: uid,
+          title: 'Biz365 Business Card',
+          description: 'Business Card - Join Biz365',
+          active_target_url: 'https://app.biz365.ai/signup',
+          target_url: 'https://app.biz365.ai/signup',
+          click_count: 0,
+          last_clicked: null,
+          is_active: true,
+          organization_id: null,
+          created_at: new Date().toISOString()
+        };
+      } else if (uid === 'BZ6DHL7C') {
+        // Special case for CoreMentors
         console.log('🔄 Using fallback for BZ6DHL7C');
         nfcTag = {
           id: 'fallback-1',
@@ -257,7 +277,7 @@ app.get('/q/:uid', async (req, res) => {
     }
     
     // Record NFC scan via backend API (only if not using fallback)
-    if (nfcTag.id !== 'fallback-1') {
+    if (!nfcTag.id.startsWith('fallback-')) {
       try {
         await callBackendAPI('/nfc/scan', {
           method: 'POST',
@@ -275,7 +295,7 @@ app.get('/q/:uid', async (req, res) => {
         console.error('Failed to record NFC scan:', error);
       }
     } else {
-      console.log('📊 Skipping analytics for fallback NFC tag');
+      console.log(`📊 Skipping backend analytics for fallback NFC tag: ${uid}`);
     }
     
     // Log analytics event to main API
