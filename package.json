@@ -9,16 +9,21 @@
     "build": "echo 'No build step required'"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
     "dotenv": "^17.2.2",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "node-fetch": "^3.3.2",
     "pg": "^8.11.3"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["nfc", "redirect", "biz365"],
+  "keywords": [
+    "nfc",
+    "redirect",
+    "biz365"
+  ],
   "author": "Biz365 Team",
   "license": "MIT"
 }
